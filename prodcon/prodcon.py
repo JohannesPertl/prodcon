@@ -1,5 +1,29 @@
+import functools
 import threading
+from functools import wraps
 from queue import Queue
+
+q = Queue()
+
+
+def produces(generator):
+    """Decorator for Producer"""
+    @wraps(generator)
+    def wrapper(*args, **kwargs):
+        p = Producer(generator, args=args, kwargs=kwargs)
+        p.start()
+
+    return wrapper
+
+
+def consumes(func):
+    """Decorator for Consumer"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        p = Consumer(func, args=args, kwargs=kwargs)
+        p.start()
+
+    return wrapper
 
 
 class Producer(threading.Thread):
@@ -12,24 +36,33 @@ class Producer(threading.Thread):
     :param **kwargs: Named arguments passed to items, if it is callable
     """
 
-    def __init__(self, queue: Queue, generator, args=(), kwargs=None):
+    def __init__(self, generator, args=(), kwargs=None, queue=None):
         super(Producer, self).__init__()
+        if queue is None:
+            queue = q
         if kwargs is None:
             kwargs = {}
         self.queue = queue
-        self.__generator = generator(*args, **kwargs)
         self.__args = args
         self.__kwargs = kwargs
+        functools.update_wrapper(self, generator)
+        self.__generator = generator
         self.__kill_pill = threading.Event()
 
+    def __call__(self, *args, **kwargs):
+        self.__args = args
+        self.__kwargs = kwargs
+        return self.start()
+
     def run(self):
+        g = self.__generator(*self.__args, **self.__kwargs)
         while True:
             if self.__kill_pill.is_set():
                 return
 
             if not self.queue.full():
                 try:
-                    item = next(self.__generator)
+                    item = next(g)
                 except StopIteration:
                     return
 
@@ -55,16 +88,24 @@ class Consumer(threading.Thread):
     :param **kwargs: Named arguments passed to your processing function
     """
 
-    def __init__(self, queue: Queue, func,
-                 args=(), kwargs=None):
+    def __init__(self, func,
+                 args=(), kwargs=None, queue=None):
         super(Consumer, self).__init__()
+        if queue is None:
+            queue = q
         if kwargs is None:
             kwargs = {}
         self.queue = queue
+        functools.update_wrapper(self, func)
         self.__func = func
         self.__args = args
         self.__kwargs = kwargs
         self.__kill_pill = threading.Event()
+
+    def __call__(self, *args, **kwargs):
+        self.__args = args
+        self.__kwargs = kwargs
+        return self.start()
 
     def run(self):
         while True:
