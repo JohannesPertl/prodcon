@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="prodcon",
-    version="0.1.2",
+    version="0.2.0",
     author="Johannes Pertl",
     author_email="johannes.pertl@edu.fh-joanneum.at",
     description="An easy to use implementation of the producer consumer pattern",
